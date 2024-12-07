@@ -12,6 +12,7 @@ export async function createToken(
   name: string,
   symbol: string,
   initialSupply: number,
+  tokenType: string,
 ) {
   try {
     const client = await SupraClient.init(rpcUrl);
@@ -26,7 +27,7 @@ export async function createToken(
         'custom_token_testing_twelve',
         'register',
         //@ts-ignore
-        [`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token0`],
+        [`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`],
         [],
       );
 
@@ -68,9 +69,23 @@ export async function createToken(
       enableWaitForTransaction: true,
     });
 
+    const response = {
+      txHash: txResult.txHash,
+      result: txResult.result,
+      tokenDetails: {
+        tokenType: tokenType,
+        name: name,
+        symbol: symbol,
+        initialSupply: initialSupply,
+        owner: tokenOwner,
+        contractAddress: FACTORY_ADDRESS,
+        tokenIdentifier: `${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`,
+      },
+    };
+
     Logger.info('Token creation transaction submitted', { txResult });
 
-    return txResult;
+    return response;
   } catch (error) {
     Logger.error('Create token failed', { error });
     throw error;

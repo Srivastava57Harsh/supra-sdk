@@ -10,23 +10,23 @@ export default (app: Router) => {
 
   route.post('/create', async (req, res) => {
     try {
-      const { privateKey, tokenOwner, name, symbol, initialSupply } = req.body;
+      const { privateKey, tokenOwner, name, symbol, initialSupply, tokenType } = req.body;
 
-      if (!privateKey || !tokenOwner || !name || !symbol || !initialSupply) {
+      if (!privateKey || !tokenOwner || !name || !symbol || !initialSupply || tokenType === undefined) {
         return res.status(400).json({ error: 'Missing required parameters' });
       }
 
-      const creator = new SupraAccount(Buffer.from(privateKey, 'hex'));
+      const account = new SupraAccount(Buffer.from(privateKey, 'hex'));
       const result = await createToken(
         process.env.SUPRA_RPC_URL || 'https://rpc-testnet.supra.com',
-        creator,
+        account,
         tokenOwner,
         name,
         symbol,
         initialSupply,
+        tokenType,
       );
 
-      Logger.info('Token created successfully', { name, symbol });
       return res.json(result);
     } catch (error) {
       Logger.error('Failed to create token', { error });
