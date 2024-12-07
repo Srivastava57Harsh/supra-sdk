@@ -11,16 +11,45 @@ export default (app: Router) => {
 
   route.post('/create', async (req, res) => {
     try {
-      const { tokenOwner, name, symbol, tokenType } = req.body;
+      const { tokenOwnerPrivateKey, name, symbol, tokenType } = req.body;
 
-      if (!tokenOwner || !name || !symbol || tokenType === undefined) {
+      if (!tokenOwnerPrivateKey || !name || !symbol || tokenType === undefined) {
         return res.status(400).json({ error: 'Missing required parameters' });
       }
 
-      const account = new SupraAccount(Buffer.from(SUPRA_CONSTANTS.DEPLOYER_PRIVATE_KEY, 'hex'));
-      const result = await createToken(SUPRA_CONSTANTS.RPC_URL, account, tokenOwner, name, symbol, tokenType);
+      // Create token owner account from private key
+      const tokenOwnerAccount = new SupraAccount(Buffer.from(tokenOwnerPrivateKey as string, 'hex'));
+      const tokenOwnerAddress = tokenOwnerAccount.address().toString();
 
-      return res.json(result);
+      // Create deployer account
+      const deployerAccount = new SupraAccount(Buffer.from(SUPRA_CONSTANTS.DEPLOYER_PRIVATE_KEY, 'hex'));
+
+      // 1. Create the token
+      const createResult = await createToken(
+        SUPRA_CONSTANTS.RPC_URL,
+        deployerAccount,
+        tokenOwnerAddress,
+        name,
+        symbol,
+        tokenType,
+      );
+
+      // 2. Register token for token owner
+      await registerForToken(SUPRA_CONSTANTS.RPC_URL, tokenOwnerAccount, tokenType);
+
+      // 3. Transfer initial supply to token owner
+      await transferToken(
+        SUPRA_CONSTANTS.RPC_URL,
+        deployerAccount,
+        tokenType,
+        tokenOwnerAddress,
+        500000, // Initial supply
+      );
+
+      return res.json({
+        ...createResult,
+        message: 'Token created, registered and transferred to owner successfully',
+      });
     } catch (error) {
       Logger.error('Failed to create token', { error });
       return res.status(500).json({ error: error.message });
