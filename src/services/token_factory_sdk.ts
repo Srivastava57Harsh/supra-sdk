@@ -16,15 +16,36 @@ export async function createToken(
   try {
     const client = await SupraClient.init(rpcUrl);
 
-    if (creator.address().toString() !== FACTORY_ADDRESS) {
-      throw new Error('Creator must be the factory contract deployer');
+    try {
+      const registerTx = await client.createRawTxObject(
+        creator.address(),
+        (
+          await client.getAccountInfo(creator.address())
+        ).sequence_number,
+        FACTORY_ADDRESS.replace('0x', ''),
+        'custom_token_testing_twelve',
+        'register',
+        //@ts-ignore
+        [`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token0`],
+        [],
+      );
+
+      const registerSerializer = new BCS.Serializer();
+      registerTx.serialize(registerSerializer);
+      await client.sendTxUsingSerializedRawTransaction(creator, registerSerializer.getBytes(), {
+        enableWaitForTransaction: true,
+      });
+
+      Logger.info('Factory registered for Token0');
+    } catch (regError) {
+      Logger.warn('Registration might have failed or already exists', { regError });
     }
 
-    // Convert address string to bytes
+    // Then create the token
     const ownerAddress = new HexString(tokenOwner);
     const ownerBytes = ownerAddress.toUint8Array();
 
-    const rawTx = await client.createRawTxObject(
+    const createTx = await client.createRawTxObject(
       creator.address(),
       (
         await client.getAccountInfo(creator.address())
@@ -32,7 +53,7 @@ export async function createToken(
       FACTORY_ADDRESS.replace('0x', ''),
       MODULE_NAME,
       'create_token',
-      [], // type arguments
+      [],
       [
         ownerBytes,
         BCS.bcsSerializeStr(name),
@@ -42,15 +63,13 @@ export async function createToken(
     );
 
     const serializer = new BCS.Serializer();
-    rawTx.serialize(serializer);
-    const serializedTx = serializer.getBytes();
-
-    const txResult = await client.sendTxUsingSerializedRawTransaction(creator, serializedTx, {
+    createTx.serialize(serializer);
+    const txResult = await client.sendTxUsingSerializedRawTransaction(creator, serializer.getBytes(), {
       enableWaitForTransaction: true,
-      enableTransactionSimulation: true,
     });
 
     Logger.info('Token creation transaction submitted', { txResult });
+
     return txResult;
   } catch (error) {
     Logger.error('Create token failed', { error });
@@ -94,7 +113,12 @@ export async function transferToken(
     const recipientAddress = new HexString(recipient);
     const recipientBytes = recipientAddress.toUint8Array();
 
-    const rawTx = await client.createRawTxObject(
+    const typeTag = new TxnBuilderTypes.TypeTagStruct(
+      TxnBuilderTypes.StructTag.fromString(`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`),
+    );
+
+    // Create serialized raw transaction directly
+    const serializedTx = await client.createSerializedRawTxObject(
       sender.address(),
       (
         await client.getAccountInfo(sender.address())
@@ -102,16 +126,11 @@ export async function transferToken(
       FACTORY_ADDRESS.replace('0x', ''),
       'custom_token_testing_twelve',
       'transfer',
-      //@ts-ignore
-      [`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`],
+      [typeTag],
       [recipientBytes, BCS.bcsSerializeUint64(BigInt(amount))],
     );
 
-    // Serialize the transaction
-    const serializer = new BCS.Serializer();
-    rawTx.serialize(serializer);
-    const serializedTx = serializer.getBytes();
-
+    // Send the transaction
     const txResult = await client.sendTxUsingSerializedRawTransaction(sender, serializedTx, {
       enableWaitForTransaction: true,
       enableTransactionSimulation: true,
