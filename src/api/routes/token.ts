@@ -43,7 +43,7 @@ export default (app: Router) => {
         deployerAccount,
         tokenType,
         tokenOwnerAddress,
-        500000, // Initial supply
+        10000, // Initial supply
       );
 
       return res.json({
@@ -118,6 +118,59 @@ export default (app: Router) => {
       return res.json({ result: true });
     } catch (error) {
       Logger.error('Failed to register for token', { error });
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  route.post('/claim', async (req, res) => {
+    try {
+      const { userPrivateKey, tokenType } = req.body;
+
+      if (!userPrivateKey || tokenType === undefined) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+
+      // Parse tokenType to number
+      const parsedTokenType = parseInt(tokenType);
+      if (isNaN(parsedTokenType)) {
+        return res.status(400).json({ error: 'Invalid token type - must be a number' });
+      }
+
+      // Create user account from private key
+      const userAccount = new SupraAccount(Buffer.from(userPrivateKey, 'hex'));
+      const userAddress = userAccount.address().toString();
+
+      // Create deployer account (who will send the tokens)
+      const deployerAccount = new SupraAccount(Buffer.from(SUPRA_CONSTANTS.DEPLOYER_PRIVATE_KEY, 'hex'));
+
+      // 1. Register user for the token
+      const registerResult = await registerForToken(SUPRA_CONSTANTS.RPC_URL, userAccount, parsedTokenType);
+
+      // 2. Transfer mock tokens to user
+      const MOCK_AMOUNT = 5000; // 0.005 tokens (assuming 6 decimals)
+      const transferResult = await transferToken(
+        SUPRA_CONSTANTS.RPC_URL,
+        deployerAccount,
+        parsedTokenType,
+        userAddress,
+        MOCK_AMOUNT,
+      );
+
+      return res.json({
+        success: true,
+        message: 'Token claimed successfully',
+        details: {
+          tokenType: parsedTokenType,
+          amount: MOCK_AMOUNT,
+          recipient: userAddress,
+          transactions: {
+            register: registerResult.txHash,
+            transfer: transferResult.txHash,
+          },
+        },
+      });
+    } catch (error) {
+      Logger.error('Failed to claim token', { error });
       return res.status(500).json({ error: error.message });
     }
   });
