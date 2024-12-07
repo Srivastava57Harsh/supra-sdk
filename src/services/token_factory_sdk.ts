@@ -1,5 +1,6 @@
-import { SupraAccount, SupraClient, BCS, HexString } from 'supra-l1-sdk';
+import { SupraAccount, SupraClient, BCS, HexString, TxnBuilderTypes } from 'supra-l1-sdk';
 import Logger from '../loaders/logger';
+import { AccountAddress, StructTag, TypeTag } from '@aptos-labs/ts-sdk';
 
 const FACTORY_ADDRESS = '0xdc167abaaeefe34ca7426b800d6099584d4db56851b7dabb5c1d50925b691918';
 const MODULE_NAME = 'token_factory_gamma_testing_twelve';
@@ -128,35 +129,39 @@ export async function registerForToken(rpcUrl: string, account: SupraAccount, to
   try {
     const client = await SupraClient.init(rpcUrl);
 
-    // Create raw transaction
+    const accountInfo = await client.getAccountInfo(account.address());
+    const sequenceNumber = accountInfo.sequence_number;
+
+    const typeTag = new TxnBuilderTypes.TypeTagStruct(
+      TxnBuilderTypes.StructTag.fromString(`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`),
+    );
+
     const rawTx = await client.createRawTxObject(
       account.address(),
-      (
-        await client.getAccountInfo(account.address())
-      ).sequence_number,
+      sequenceNumber,
       FACTORY_ADDRESS.replace('0x', ''),
       'custom_token_testing_twelve',
       'register',
-      //@ts-ignore
-      [`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`],
+      [typeTag],
       [],
     );
 
-    // Serialize the transaction
-    const serializer = new BCS.Serializer();
-    rawTx.serialize(serializer);
-    const serializedTx = serializer.getBytes();
+    // Serialize the raw transaction
+    const serializedTx = BCS.bcsToBytes(rawTx);
 
-    // Send the transaction
+    // Submit the transaction and wait for results
     const txResult = await client.sendTxUsingSerializedRawTransaction(account, serializedTx, {
       enableWaitForTransaction: true,
       enableTransactionSimulation: true,
     });
 
-    Logger.info('Token registration completed', { txResult });
+    Logger.info('Token registration completed successfully', { txResult });
     return txResult;
   } catch (error) {
-    Logger.error('Register for token failed', { error });
-    throw error;
+    Logger.error('Token registration failed', {
+      error: error.message,
+      stack: error.stack,
+    });
+    throw new Error(`Failed to register for token: ${error.message}`);
   }
 }

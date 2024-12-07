@@ -92,8 +92,8 @@ export default (app: Router) => {
         parseInt(tokenType),
       );
 
-      Logger.info('Token registration successful');
-      return res.json(result);
+      // Logger.info('Token registration successful');
+      return res.json({ result: true });
     } catch (error) {
       Logger.error('Failed to register for token', { error });
       return res.status(500).json({ error: error.message });

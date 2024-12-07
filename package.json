@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@aptos-labs/ts-sdk": "^1.33.1",
+    "bignumber.js": "^9.1.2",
     "body-parser": "^1.19.0",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
