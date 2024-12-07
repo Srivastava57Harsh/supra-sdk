@@ -1,8 +1,6 @@
 import { SupraAccount, SupraClient, BCS } from 'supra-l1-sdk';
 import Logger from '../loaders/logger';
-
-const FACTORY_ADDRESS = '0xdc167abaaeefe34ca7426b800d6099584d4db56851b7dabb5c1d50925b691918';
-const MODULE_NAME = 'token_factory_gamma_testing_twelve';
+import { SUPRA_CONSTANTS } from '../constants';
 
 export async function initializeContract(supraClient: SupraClient, adminAccount: SupraAccount) {
   try {
@@ -11,8 +9,8 @@ export async function initializeContract(supraClient: SupraClient, adminAccount:
       (
         await supraClient.getAccountInfo(adminAccount.address())
       ).sequence_number,
-      FACTORY_ADDRESS.replace('0x', ''),
-      MODULE_NAME,
+      SUPRA_CONSTANTS.FACTORY_ADDRESS.replace('0x', ''),
+      SUPRA_CONSTANTS.MODULE_FACTORY_NAME,
       'initialize',
       [],
       [],

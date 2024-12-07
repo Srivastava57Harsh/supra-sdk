@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { createToken, getTokenBalance, transferToken, registerForToken } from '../../services/token_factory_sdk';
 import { SupraAccount } from 'supra-l1-sdk';
 import Logger from '../../loaders/logger';
+import { SUPRA_CONSTANTS } from '../../constants';
 
 const route = Router();
 
@@ -10,22 +11,14 @@ export default (app: Router) => {
 
   route.post('/create', async (req, res) => {
     try {
-      const { privateKey, tokenOwner, name, symbol, initialSupply, tokenType } = req.body;
+      const { tokenOwner, name, symbol, tokenType } = req.body;
 
-      if (!privateKey || !tokenOwner || !name || !symbol || !initialSupply || tokenType === undefined) {
+      if (!tokenOwner || !name || !symbol || tokenType === undefined) {
         return res.status(400).json({ error: 'Missing required parameters' });
       }
 
-      const account = new SupraAccount(Buffer.from(privateKey, 'hex'));
-      const result = await createToken(
-        process.env.SUPRA_RPC_URL || 'https://rpc-testnet.supra.com',
-        account,
-        tokenOwner,
-        name,
-        symbol,
-        initialSupply,
-        tokenType,
-      );
+      const account = new SupraAccount(Buffer.from(SUPRA_CONSTANTS.DEPLOYER_PRIVATE_KEY, 'hex'));
+      const result = await createToken(SUPRA_CONSTANTS.RPC_URL, account, tokenOwner, name, symbol, tokenType);
 
       return res.json(result);
     } catch (error) {

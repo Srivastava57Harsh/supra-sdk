@@ -1,9 +1,6 @@
 import { SupraAccount, SupraClient, BCS, HexString, TxnBuilderTypes } from 'supra-l1-sdk';
 import Logger from '../loaders/logger';
-import { AccountAddress, StructTag, TypeTag } from '@aptos-labs/ts-sdk';
-
-const FACTORY_ADDRESS = '0xdc167abaaeefe34ca7426b800d6099584d4db56851b7dabb5c1d50925b691918';
-const MODULE_NAME = 'token_factory_gamma_testing_twelve';
+import { SUPRA_CONSTANTS } from '../constants';
 
 export async function createToken(
   rpcUrl: string,
@@ -11,10 +8,11 @@ export async function createToken(
   tokenOwner: string,
   name: string,
   symbol: string,
-  initialSupply: number,
+
   tokenType: string,
 ) {
   try {
+    const initialSupply = 1000000;
     const client = await SupraClient.init(rpcUrl);
 
     try {
@@ -23,11 +21,11 @@ export async function createToken(
         (
           await client.getAccountInfo(creator.address())
         ).sequence_number,
-        FACTORY_ADDRESS.replace('0x', ''),
+        SUPRA_CONSTANTS.FACTORY_ADDRESS.replace('0x', ''),
         'custom_token_testing_twelve',
         'register',
         //@ts-ignore
-        [`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`],
+        [`${SUPRA_CONSTANTS.FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`],
         [],
       );
 
@@ -51,8 +49,8 @@ export async function createToken(
       (
         await client.getAccountInfo(creator.address())
       ).sequence_number,
-      FACTORY_ADDRESS.replace('0x', ''),
-      MODULE_NAME,
+      SUPRA_CONSTANTS.FACTORY_ADDRESS.replace('0x', ''),
+      SUPRA_CONSTANTS.MODULE_FACTORY_NAME,
       'create_token',
       [],
       [
@@ -78,8 +76,8 @@ export async function createToken(
         symbol: symbol,
         initialSupply: initialSupply,
         owner: tokenOwner,
-        contractAddress: FACTORY_ADDRESS,
-        tokenIdentifier: `${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`,
+        contractAddress: SUPRA_CONSTANTS.FACTORY_ADDRESS,
+        tokenIdentifier: `${SUPRA_CONSTANTS.FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`,
       },
     };
 
@@ -98,7 +96,7 @@ export async function getTokenBalance(rpcUrl: string, tokenType: number, ownerAd
     const ownerHex = new HexString(ownerAddress);
     const balance = await client.getAccountCoinBalance(
       ownerHex,
-      `${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`,
+      `${SUPRA_CONSTANTS.FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`,
     );
 
     // Convert BigInt to string/number for JSON serialization
@@ -129,7 +127,9 @@ export async function transferToken(
     const recipientBytes = recipientAddress.toUint8Array();
 
     const typeTag = new TxnBuilderTypes.TypeTagStruct(
-      TxnBuilderTypes.StructTag.fromString(`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`),
+      TxnBuilderTypes.StructTag.fromString(
+        `${SUPRA_CONSTANTS.FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`,
+      ),
     );
 
     // Create serialized raw transaction directly
@@ -138,8 +138,8 @@ export async function transferToken(
       (
         await client.getAccountInfo(sender.address())
       ).sequence_number,
-      FACTORY_ADDRESS.replace('0x', ''),
-      'custom_token_testing_twelve',
+      SUPRA_CONSTANTS.FACTORY_ADDRESS.replace('0x', ''),
+      SUPRA_CONSTANTS.MODULE_TOKEN_NAME,
       'transfer',
       [typeTag],
       [recipientBytes, BCS.bcsSerializeUint64(BigInt(amount))],
@@ -167,14 +167,16 @@ export async function registerForToken(rpcUrl: string, account: SupraAccount, to
     const sequenceNumber = accountInfo.sequence_number;
 
     const typeTag = new TxnBuilderTypes.TypeTagStruct(
-      TxnBuilderTypes.StructTag.fromString(`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`),
+      TxnBuilderTypes.StructTag.fromString(
+        `${SUPRA_CONSTANTS.FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`,
+      ),
     );
 
     const rawTx = await client.createRawTxObject(
       account.address(),
       sequenceNumber,
-      FACTORY_ADDRESS.replace('0x', ''),
-      'custom_token_testing_twelve',
+      SUPRA_CONSTANTS.FACTORY_ADDRESS.replace('0x', ''),
+      SUPRA_CONSTANTS.MODULE_TOKEN_NAME,
       'register',
       [typeTag],
       [],
