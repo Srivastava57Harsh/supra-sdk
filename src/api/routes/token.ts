@@ -12,27 +12,39 @@ export default (app: Router) => {
     Logger.info('Received create token request', { body: req.body });
     try {
       const { privateKey, name, symbol, initialSupply } = req.body;
+
+      // Log RPC URL
+      Logger.debug('Using RPC URL', { url: process.env.SUPRA_RPC_URL });
+
+      if (!process.env.SUPRA_RPC_URL) {
+        throw new Error('SUPRA_RPC_URL not configured');
+      }
+
       Logger.debug('Creating SupraAccount', { privateKeyLength: privateKey?.length });
-      
       const creator = new SupraAccount(Buffer.from(privateKey, 'hex'));
-      Logger.debug('SupraAccount created', { 
+
+      // Log account details
+      Logger.debug('Account created', {
         address: creator.address?.toString(),
         //@ts-ignore
-        publicKey: creator.publicKey?.toString()
+        hasPublicKey: !!creator.publicKey,
+        //@ts-ignore
+        publicKeyType: typeof creator.publicKey,
       });
 
-      const result = await createToken(
-        process.env.SUPRA_RPC_URL,
-        creator,
-        name,
-        symbol,
-        initialSupply
-      );
-      Logger.info('Token created successfully', { result });
+      const result = await createToken(process.env.SUPRA_RPC_URL, creator, name, symbol, initialSupply);
+
       return res.json(result);
     } catch (e) {
-      Logger.error('Token creation failed', { error: e.message, stack: e.stack });
-      return res.status(500).json({ error: e.message });
+      Logger.error('Token creation failed', {
+        error: e.message,
+        stack: e.stack,
+        rpcUrl: process.env.SUPRA_RPC_URL,
+      });
+      return res.status(500).json({
+        error: e.message,
+        details: process.env.NODE_ENV === 'development' ? e.stack : undefined,
+      });
     }
   });
 
