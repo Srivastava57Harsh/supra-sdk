@@ -1,52 +1,53 @@
-import { HexString, SupraAccount, SupraClient, BCS } from 'supra-l1-sdk';
+import { SupraAccount, SupraClient, BCS, HexString } from 'supra-l1-sdk';
 import Logger from '../loaders/logger';
 
-const FACTORY_ADDRESS = '0x335faef3a35932c83b5a2f7cff5edee7a9ff38bcb5c1ad6dc176e43ebd9af471';
+const FACTORY_ADDRESS = '0xdc167abaaeefe34ca7426b800d6099584d4db56851b7dabb5c1d50925b691918';
+const MODULE_NAME = 'token_factory_gamma_testing_twelve';
 
 export async function createToken(
   rpcUrl: string,
   creator: SupraAccount,
+  tokenOwner: string,
   name: string,
   symbol: string,
   initialSupply: number,
 ) {
-  Logger.info('Creating token', { name, symbol, initialSupply });
-
   try {
     const client = await SupraClient.init(rpcUrl);
 
-    // Check if account exists
-    if (!(await client.isAccountExists(creator.address()))) {
-      Logger.error('Creator account does not exist');
-      throw new Error('Creator account does not exist');
+    if (creator.address().toString() !== FACTORY_ADDRESS) {
+      throw new Error('Creator must be the factory contract deployer');
     }
 
-    // Create raw transaction
+    // Convert address string to bytes
+    const ownerAddress = new HexString(tokenOwner);
+    const ownerBytes = ownerAddress.toUint8Array();
+
     const rawTx = await client.createRawTxObject(
       creator.address(),
       (
         await client.getAccountInfo(creator.address())
       ).sequence_number,
       FACTORY_ADDRESS.replace('0x', ''),
-      'token_factory_gamma_testing_eight',
+      MODULE_NAME,
       'create_token',
       [], // type arguments
-      [BCS.bcsSerializeStr(name), BCS.bcsSerializeStr(symbol), BCS.bcsSerializeUint64(initialSupply)],
+      [
+        ownerBytes,
+        BCS.bcsSerializeStr(name),
+        BCS.bcsSerializeStr(symbol),
+        BCS.bcsSerializeUint64(BigInt(initialSupply)),
+      ],
     );
 
-    // Create signed transaction
-    const signedTx = SupraClient.createSignedTransaction(creator, rawTx);
+    const serializer = new BCS.Serializer();
+    rawTx.serialize(serializer);
+    const serializedTx = serializer.getBytes();
 
-    // Send transaction
-    const txResult = await client.sendTxUsingSerializedRawTransaction(
-      creator,
-      //@ts-ignore
-      rawTx,
-      {
-        enableWaitForTransaction: true,
-        enableTransactionSimulation: true,
-      },
-    );
+    const txResult = await client.sendTxUsingSerializedRawTransaction(creator, serializedTx, {
+      enableWaitForTransaction: true,
+      enableTransactionSimulation: true,
+    });
 
     Logger.info('Token creation transaction submitted', { txResult });
     return txResult;
@@ -56,87 +57,106 @@ export async function createToken(
   }
 }
 
-export async function registerForToken(rpcUrl: string, recipient: SupraAccount, tokenNumber: number = 0) {
+export async function getTokenBalance(rpcUrl: string, tokenType: number, ownerAddress: string) {
   try {
     const client = await SupraClient.init(rpcUrl);
-
-    if (!(await client.isAccountExists(recipient.address()))) {
-      throw new Error('Recipient account does not exist');
-    }
-
-    const rawTx = await client.createRawTxObject(
-      recipient.address(),
-      (
-        await client.getAccountInfo(recipient.address())
-      ).sequence_number,
-      FACTORY_ADDRESS.replace('0x', ''),
-      'custom_token_testing_eight',
-      'register',
-      //@ts-ignore
-      [`${FACTORY_ADDRESS}::custom_token_testing_eight::Token${tokenNumber}`],
-      [],
+    const ownerHex = new HexString(ownerAddress);
+    const balance = await client.getAccountCoinBalance(
+      ownerHex,
+      `${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`,
     );
 
-    const txResult = await client.sendTxUsingSerializedRawTransaction(
-      recipient,
-      //@ts-ignore
-      rawTx,
-      {
-        enableWaitForTransaction: true,
-        enableTransactionSimulation: true,
-      },
-    );
+    // Convert BigInt to string/number for JSON serialization
+    const result = {
+      balance: Number(balance), // or balance.toString() if the number is too large
+    };
 
-    Logger.info('Token registration transaction submitted', { txResult });
-    return txResult;
+    Logger.info('Token balance fetched', { result });
+    return result;
   } catch (error) {
-    Logger.error('Register token failed', { error });
+    Logger.error('Get balance failed', { error });
     throw error;
   }
 }
 
-export async function transferTokens(
+export async function transferToken(
   rpcUrl: string,
-  from: SupraAccount,
-  to: string,
+  sender: SupraAccount,
+  tokenType: number,
+  recipient: string,
   amount: number,
-  tokenNumber: number = 0,
 ) {
   try {
     const client = await SupraClient.init(rpcUrl);
-    const toAddress = new HexString(to);
 
-    if (!(await client.isAccountExists(from.address()))) {
-      throw new Error('Sender account does not exist');
-    }
+    // Convert address to bytes
+    const recipientAddress = new HexString(recipient);
+    const recipientBytes = recipientAddress.toUint8Array();
 
     const rawTx = await client.createRawTxObject(
-      from.address(),
+      sender.address(),
       (
-        await client.getAccountInfo(from.address())
+        await client.getAccountInfo(sender.address())
       ).sequence_number,
       FACTORY_ADDRESS.replace('0x', ''),
-      'custom_token_testing_eight',
+      'custom_token_testing_twelve',
       'transfer',
       //@ts-ignore
-      [`${FACTORY_ADDRESS}::custom_token_testing_eight::Token${tokenNumber}`],
-      [toAddress.toUint8Array(), BCS.bcsSerializeUint64(amount)],
+      [`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`],
+      [recipientBytes, BCS.bcsSerializeUint64(BigInt(amount))],
     );
 
-    const txResult = await client.sendTxUsingSerializedRawTransaction(
-      from,
-      //@ts-ignore
-      rawTx,
-      {
-        enableWaitForTransaction: true,
-        enableTransactionSimulation: true,
-      },
-    );
+    // Serialize the transaction
+    const serializer = new BCS.Serializer();
+    rawTx.serialize(serializer);
+    const serializedTx = serializer.getBytes();
 
-    Logger.info('Token transfer transaction submitted', { txResult });
+    const txResult = await client.sendTxUsingSerializedRawTransaction(sender, serializedTx, {
+      enableWaitForTransaction: true,
+      enableTransactionSimulation: true,
+    });
+
+    Logger.info('Token transfer completed', { txResult });
     return txResult;
   } catch (error) {
-    Logger.error('Transfer tokens failed', { error });
+    Logger.error('Transfer token failed', { error });
+    throw error;
+  }
+}
+
+export async function registerForToken(rpcUrl: string, account: SupraAccount, tokenType: number) {
+  try {
+    const client = await SupraClient.init(rpcUrl);
+
+    // Create raw transaction
+    const rawTx = await client.createRawTxObject(
+      account.address(),
+      (
+        await client.getAccountInfo(account.address())
+      ).sequence_number,
+      FACTORY_ADDRESS.replace('0x', ''),
+      'custom_token_testing_twelve',
+      'register',
+      //@ts-ignore
+      [`${FACTORY_ADDRESS}::custom_token_testing_twelve::Token${tokenType}`],
+      [],
+    );
+
+    // Serialize the transaction
+    const serializer = new BCS.Serializer();
+    rawTx.serialize(serializer);
+    const serializedTx = serializer.getBytes();
+
+    // Send the transaction
+    const txResult = await client.sendTxUsingSerializedRawTransaction(account, serializedTx, {
+      enableWaitForTransaction: true,
+      enableTransactionSimulation: true,
+    });
+
+    Logger.info('Token registration completed', { txResult });
+    return txResult;
+  } catch (error) {
+    Logger.error('Register for token failed', { error });
     throw error;
   }
 }
