@@ -2,7 +2,6 @@
 
 A TypeScript-based SDK for creating, managing, and interacting with custom tokens on the Supra L1 network.
 
-![Supra Architecture](https://i.imgur.com/example.png) [Create diagram showing token factory architecture]
 
 ## 🚀 Features
 
@@ -168,6 +167,5 @@ MIT
 - [Supra Documentation](https://docs.supra.com)
 - [Move VM Docs](https://move-language.github.io/move/)
 - [TypeScript SDK](https://www.npmjs.com/package/supra-l1-sdk)
-```
 
-</rewritten_file>
+
